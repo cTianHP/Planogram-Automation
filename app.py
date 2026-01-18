@@ -281,9 +281,9 @@ def place_and_optimize(df_normal, df_yoghurt, shelving_count=SHELVING_COUNT, she
 # ============================
 # STREAMLIT UI
 # ============================
-st.set_page_config(page_title="Auto Planogram Engine (global-filling)", layout="wide")
-st.title("🛒 Auto Planogram Engine (Global Facing fill)")
-st.caption("Assortment-first • Yoghurt hard-rule • Snake layout • Global greedy facing fill (Max facing per SKU)")
+st.set_page_config(page_title="Planogram Automation", layout="wide")
+st.title("Planogram Automation")
+# st.caption("Assortment-first • Yoghurt hard-rule • Snake layout • Global greedy facing fill (Max facing per SKU)")
 
 st.subheader("1️⃣ Download Template")
 st.download_button("⬇️ Download Template Master Item", generate_template(), "template_master_item.xlsx")
