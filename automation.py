@@ -224,7 +224,20 @@ with tab1:
 # TAB 2
 # =========================
 with tab2:
-    st.header("🌳 Setting Purchase Decision Tree 🌳")
+    st.header(" Setting Planogram")
+    def load_affinity(section):
+        try:
+            file_path = f"affinity/{section}.xlsx"
+            df_aff = pd.read_excel(file_path)
+
+            # Pastikan kolom rapih
+            df_aff.columns = df_aff.columns.str.strip()
+
+            return df_aff
+
+        except Exception as e:
+            st.warning(f"File affinity untuk section '{section}' tidak ditemukan")
+            return pd.DataFrame()
 
     # =========================
     # INPUT: SECTION
@@ -255,6 +268,14 @@ with tab2:
     else:
         st.success(f"Section dipilih: {selected_section}")
         st.session_state["section"] = selected_section
+        
+    # =========================
+    # LOAD AFFINITY
+    # =========================
+    df_affinity = load_affinity(selected_section)
+
+    # simpan ke session
+    st.session_state["df_affinity"] = df_affinity
 
     # =========================
     # PREVIEW DATA
@@ -326,11 +347,40 @@ with tab2:
                     key=f"lebar_{i}"
                 )
 
+            # =========================
+            # INPUT MAX HEIGHT PER SHELVING
+            # =========================
+            st.markdown("##### Setting Tinggi Maksimal per Shelving")
+
+            # Default semua shelving = 30 cm
+            max_height_shelf = [30] * jumlah_shelf
+
+            # Pilih shelving yang ingin diatur
+            selected_shelves = st.multiselect(
+                f"Pilih Shelving yang ingin diatur (Rak {i})",
+                options=list(range(1, jumlah_shelf + 1)),
+                key=f"select_shelf_{i}"
+            )
+
+            # Input tinggi untuk shelving terpilih
+            for s in selected_shelves:
+                height_input = st.number_input(
+                    f"Tinggi Maksimal Item Shelving {s} (cm) - Rak {i}",
+                    min_value=5.0,
+                    max_value=100.0,
+                    value=30.0,
+                    step=1.0,
+                    key=f"max_height_r{i}_s{s}"
+                )
+                
+                # Replace default value
+                max_height_shelf[s - 1] = height_input
             rack_config.append({
                 "Rak": f"Rak_{i}",
                 "Jumlah Shelving": jumlah_shelf,
                 "Tinggi Rak (cm)": tinggi_rak,
-                "Lebar Shelving (cm)": lebar_shelf
+                "Lebar Shelving (cm)": lebar_shelf,
+                "Max Tinggi per Shelving": max_height_shelf
             })
 
         # =========================
@@ -345,194 +395,423 @@ with tab2:
         st.subheader("Preview Konfigurasi Rak")
         st.dataframe(df_rack_config)
         
+        # =========================
+        # SETTING TIER PLU
+        # =========================
+        st.subheader("Setting Tier (Kiri-Kanan / Facing PLU)")
+
+        df_master_item = st.session_state["df_result"][["PLU", "DESCP"]].drop_duplicates()
+
+        # jumlah baris input
+        num_rows = st.number_input(
+            "Jumlah PLU yang ingin diatur",
+            min_value=0,
+            max_value=100,
+            value=0,
+            step=1
+        )
+
+        tier_data = []
+
+        for i in range(num_rows):
+            st.markdown(f"#### Input PLU {i+1}")
+
+            col1, col2, col3 = st.columns([2, 3, 1])
+
+            # =========================
+            # INPUT PLU (MANUAL)
+            # =========================
+            with col1:
+                input_plu = st.text_input(
+                    f"PLU {i+1}",
+                    key=f"plu_input_{i}"
+                )
+
+            # =========================
+            # AUTO DESC + VALIDASI
+            # =========================
+            with col2:
+                desc = ""
+                found = False
+
+                if input_plu:
+                    result = df_master_item[
+                        df_master_item["PLU"] == input_plu
+                    ]
+
+                    if not result.empty:
+                        desc = result["DESCP"].values[0]
+                        found = True
+                        st.success(desc)
+                    else:
+                        desc = "PLU Tidak Ditemukan"
+                        st.error(desc)
+
+                else:
+                    st.info("Masukkan PLU")
+
+            # =========================
+            # INPUT TIER
+            # =========================
+            with col3:
+                tier = st.number_input(
+                    f"Tier {i+1}",
+                    min_value=1,
+                    max_value=20,
+                    value=1,
+                    step=1,
+                    key=f"tier_{i}"
+                )
+
+            tier_data.append({
+                "PLU": input_plu,
+                "DESCP": desc,
+                "Tier": tier,
+                "Valid": found
+            })
+
+        # =========================
+        # SAVE KE SESSION
+        # =========================
+        df_tier = pd.DataFrame(tier_data)
+
+        # hanya ambil yang valid
+        df_tier_valid = df_tier[df_tier["Valid"] == True]
+
+        st.session_state["df_tier"] = df_tier_valid
+
+        # =========================
+        # PREVIEW
+        # =========================
+        st.subheader("Preview Tier Setting")
+        st.dataframe(df_tier_valid)
+
+        
         if st.button("🚀 Generate Planogram"):
+            # =========================
+            # DATA CARD RAK
+            # =========================
+            df_rack = st.session_state["rack_config"]
+
+            df_rack["Total Lebar (cm)"] = (
+                df_rack["Jumlah Shelving"] * df_rack["Lebar Shelving (cm)"]
+            )
+
+            total_shelf = df_rack["Jumlah Shelving"].sum()
+            total_lebar = df_rack["Total Lebar (cm)"].sum()
+            total_rak = len(df_rack)
+
+            col1, col2, col3 = st.columns(3)
+
+            col1.metric("Jumlah Rak", total_rak)
+            col2.metric("Total Shelving", total_shelf)
+            col3.metric("Total Lebar Display (cm)", f"{total_lebar:,.0f}")
+            
+            # =========================
+            # CATEGORY PERFORMANCE
+            # =========================
+            df = st.session_state["df_result"].copy()
+
+            df_category_perf = (
+                df[["Category", "YTD ∑NS 2026 Category"]]
+                .drop_duplicates()
+            )
+
+            df_category_perf = df_category_perf.sort_values(
+                by="YTD ∑NS 2026 Category", ascending=False
+            ).reset_index(drop=True)
+
+            df_category_perf["Rank"] = df_category_perf.index + 1
+            
+            # =========================
+            # DETAIL PER CATEGORY
+            # =========================
+            df_category_detail = (
+                df.groupby("Category")
+                .agg(
+                    Jumlah_PLU=("PLU", "nunique"),
+                    Total_Lebar=("LEBAR PCS", "sum"),
+                    Avg_Lebar=("LEBAR PCS", "mean"),
+                    Max_Lebar=("LEBAR PCS", "max"),
+                    Avg_Tinggi=("TINGGI PCS", "mean"),
+                    Max_Tinggi=("TINGGI PCS", "max")
+                )
+                .reset_index()
+            )
+            
+            df_final_category = df_category_perf.merge(
+                df_category_detail,
+                on="Category",
+                how="left"
+            )
+            
+            # =========================
+            # PREPARE AFFINITY (LONG FORMAT)
+            # =========================
+            df_affinity = st.session_state.get("df_affinity", pd.DataFrame())
+
+            if not df_affinity.empty:
+                df_aff_long = df_affinity.melt(
+                    id_vars="Category",
+                    var_name="Category_Pair",
+                    value_name="Affinity"
+                )
+
+                # optional: buang self affinity (A-A)
+                df_aff_long = df_aff_long[
+                    df_aff_long["Category"] != df_aff_long["Category_Pair"]
+                ]
+            else:
+                df_aff_long = pd.DataFrame()
+            if not df_aff_long.empty:
+                df_aff_top = (
+                    df_aff_long.sort_values("Affinity", ascending=False)
+                    .groupby("Category")
+                    .first()
+                    .reset_index()
+                )
+
+                df_aff_top = df_aff_top.rename(columns={
+                    "Category_Pair": "Top_Affinity_Category",
+                    "Affinity": "Top_Affinity_Score"
+                })
+            else:
+                df_aff_top = pd.DataFrame()
+                
+            if not df_aff_top.empty:
+                df_final_category = df_final_category.merge(
+                    df_aff_top,
+                    on="Category",
+                    how="left"
+                )
+            
+            st.subheader("Category Insight")
+            st.dataframe(df_final_category)
+            st.session_state["df_category_rank"] = df_final_category
+            
+            # =========================
+            # 🚀 PLANOGRAM ENGINE FINAL (STABLE VERSION)
+            # =========================
 
             df = st.session_state["df_result"].copy()
-            # df = df[df["Section"] == "Backwall"]
-
-            df_rack = st.session_state["rack_config"]
-            num_shelf = int(df_rack.iloc[0]["Jumlah Shelving"])
-
-            total_slot = 18
+            df_category = st.session_state["df_category_rank"].copy()
+            df_rack = st.session_state["rack_config"].copy()
+            df_tier = st.session_state.get("df_tier", pd.DataFrame())
+            df_aff = st.session_state.get("df_affinity", pd.DataFrame())
 
             # =========================
-            # SPLIT ELEKTRIK
+            # 🎯 TIER LOOKUP
             # =========================
-            df_shelf4 = df[df["Category"] == "2415 - SIGARET ELEKTRIK"]
-            df_main = df[df["Category"] != "2415 - SIGARET ELEKTRIK"]
-
-            # =========================
-            # MARKET SHARE
-            # =========================
-            principal_ms = (
-                df_main.groupby("Principal")["YTD %CONT NS2026 Category"]
-                .mean()
-                .reset_index()
-                .rename(columns={"YTD %CONT NS2026 Category": "MS_Principal"})
-            )
-
-            brand_ms = (
-                df_main.groupby(["Principal", "BRAND ROKOK"])["YTD %CONT NS2026 Category"]
-                .mean()
-                .reset_index()
-                .rename(columns={"YTD %CONT NS2026 Category": "MS_Brand"})
-            )
-
-            df_main = df_main.merge(principal_ms, on="Principal", how="left")
-            df_main = df_main.merge(brand_ms, on=["Principal", "BRAND ROKOK"], how="left")
-
-            # =========================
-            # SORT SKU (PERFORMANCE)
-            # =========================
-            df_main = df_main.sort_values("NS/JTD", ascending=False)
-
-            # =========================
-            # CAPACITY CHECK
-            # =========================
-            normal_shelf = num_shelf - 1 if num_shelf >= 4 else num_shelf
-            capacity = normal_shelf * total_slot
-
-            if len(df_main) > capacity:
-                df_display = df_main.iloc[:capacity]
-                df_not_display = df_main.iloc[capacity:]
+            if not df_tier.empty:
+                tier_lookup = dict(zip(df_tier["PLU"], df_tier["Tier"]))
             else:
-                df_display = df_main.copy()
-                df_not_display = pd.DataFrame()
+                tier_lookup = {}
 
             # =========================
-            # RANK PRINCIPAL
+            # 🧱 EXPAND SHELVING
             # =========================
-            principal_order = (
-                principal_ms.sort_values("MS_Principal", ascending=False)["Principal"]
-                .tolist()
-            )
+            shelf_list = []
 
-            from collections import defaultdict
+            for _, row in df_rack.iterrows():
+                rak = row["Rak"]
+                lebar = row["Lebar Shelving (cm)"]
+                max_heights = row["Max Tinggi per Shelving"]
 
-            principal_brand_map = defaultdict(list)
-
-            brand_rank = (
-                brand_ms.sort_values(
-                    ["Principal", "MS_Brand"],
-                    ascending=[True, False]
-                )
-            )
-
-            for _, row in brand_rank.iterrows():
-                principal_brand_map[row["Principal"]].append(row["BRAND ROKOK"])
-
-            # =========================
-            # SLOT ALLOCATION
-            # =========================
-            principal_ms_series = principal_ms.set_index("Principal")["MS_Principal"]
-
-            principal_slot = {}
-            for p in principal_order:
-                share = principal_ms_series[p] / principal_ms_series.sum()
-                principal_slot[p] = max(1, int(round(share * total_slot)))
-
-            column_assignment = []
-
-            for p in principal_order:
-                brands = principal_brand_map[p]
-                n_col = principal_slot[p]
-
-                per_brand = max(1, n_col // len(brands))
-
-                for b in brands:
-                    for _ in range(per_brand):
-                        column_assignment.append((p, b))
-
-            while len(column_assignment) < total_slot:
-                column_assignment.append(column_assignment[-1])
-
-            column_assignment = column_assignment[:total_slot]
-
-            # =========================
-            # GRID
-            # =========================
-            grid = [[None for _ in range(total_slot)] for _ in range(num_shelf)]
-
-            # =========================
-            # FILL GRID (FLEXIBLE BLOCKING)
-            # =========================
-            used_index = set()
-
-            for col_idx, (p, b) in enumerate(column_assignment):
-
-                df_brand = df_display[
-                    (df_display["Principal"] == p) &
-                    (df_display["BRAND ROKOK"] == b)
-                ]
-
-                skus = df_brand.to_dict("records")
-
-                for row in range(num_shelf):
-
-                    if row + 1 == 4:
-                        continue
-
-                    # ambil SKU yang belum dipakai
-                    sku = None
-                    for i, s in enumerate(skus):
-                        if i not in used_index:
-                            sku = s
-                            used_index.add(i)
-                            break
-
-                    # kalau habis → ambil dari global terbaik
-                    if sku is None:
-                        for i, s in enumerate(df_display.to_dict("records")):
-                            if i not in used_index:
-                                sku = s
-                                used_index.add(i)
-                                break
-
-                    grid[row][col_idx] = sku
-
-            # =========================
-            # SHELF 4 (NO LIMIT)
-            # =========================
-            if num_shelf >= 4:
-                for col_idx in range(len(df_shelf4)):
-                    if col_idx < total_slot:
-                        grid[3][col_idx] = df_shelf4.iloc[col_idx].to_dict()
-
-            # =========================
-            # BUILD PLANOGRAM
-            # =========================
-            planogram = []
-
-            for row_idx in range(num_shelf):
-                for col_idx in range(total_slot):
-
-                    item = grid[row_idx][col_idx]
-
-                    if item is None:
-                        continue
-
-                    planogram.append({
-                        "Rak": 1,
-                        "Shelving": row_idx + 1,
-                        "No Urut": col_idx + 1,
-                        "Posisi": "A",
-                        "PLU": item["PLU"],
-                        "Descp": item["DESCP"],
-                        "Principal": item["Principal"],
-                        "Brand": item["BRAND ROKOK"],
-                        "Tier Kiri-Kanan": 1
+                for i, h in enumerate(max_heights):
+                    shelf_list.append({
+                        "Rak": rak,
+                        "Shelving": f"{rak}_S{i+1}",
+                        "Max_Height": h,
+                        "Max_Width": lebar,
+                        "Used_Width": 0
                     })
 
-            df_planogram = pd.DataFrame(planogram)
+            df_shelf = pd.DataFrame(shelf_list)
 
             # =========================
-            # SAVE
+            # 🥇 ASSIGN CATEGORY → RAK
+            # =========================
+            unique_rak = df_shelf["Rak"].unique().tolist()
+
+            df_category = df_category.reset_index(drop=True)
+            df_category["Assigned_Rak"] = None
+
+            for i in range(len(df_category)):
+                df_category.loc[i, "Assigned_Rak"] = unique_rak[i % len(unique_rak)]
+
+            # =========================
+            # 📦 SORT ITEM
+            # =========================
+            df = df.sort_values(
+                by=["Category", "Packtype", "Brand", "NS/JTD"],
+                ascending=[True, True, True, False]
+            ).reset_index(drop=True)
+
+            # =========================
+            # 🚀 PLACEMENT ENGINE
+            # =========================
+            planogram = []
+            not_display = []
+            placed_plu = set()
+
+            for _, cat_row in df_category.iterrows():
+                category = cat_row["Category"]
+                assigned_rak = cat_row["Assigned_Rak"]
+
+                df_cat_items = df[df["Category"] == category]
+
+                shelves_idx = df_shelf[df_shelf["Rak"] == assigned_rak].index.tolist()
+
+                for _, item in df_cat_items.iterrows():
+
+                    if item["PLU"] in placed_plu:
+                        continue
+
+                    tier = tier_lookup.get(item["PLU"], 1)
+                    width_needed = item["LEBAR PCS"] * tier
+
+                    placed = False
+
+                    for idx in shelves_idx:
+                        shelf = df_shelf.loc[idx]
+
+                        # constraint tinggi
+                        if item["TINGGI PCS"] > shelf["Max_Height"]:
+                            continue
+
+                        # constraint lebar
+                        if shelf["Used_Width"] + width_needed <= shelf["Max_Width"]:
+
+                            df_shelf.loc[idx, "Used_Width"] += width_needed
+
+                            planogram.append({
+                                "PLU": item["PLU"],
+                                "Category": category,
+                                "Rak": shelf["Rak"],
+                                "Shelving": shelf["Shelving"],
+                                "Tier": tier
+                            })
+
+                            placed_plu.add(item["PLU"])
+                            placed = True
+                            break
+
+                    if not placed:
+                        if item["TINGGI PCS"] > df_shelf.loc[shelves_idx, "Max_Height"].max():
+                            reason = "Tinggi melebihi semua shelf"
+                        elif all(
+                            df_shelf.loc[shelves_idx, "Used_Width"] + width_needed > df_shelf.loc[shelves_idx, "Max_Width"]
+                        ):
+                            reason = "Lebar tidak cukup"
+                        else:
+                            reason = "Tidak teralokasi"
+
+                        not_display.append({
+                            "PLU": item["PLU"],
+                            "Category": category,
+                            "Tier": tier,
+                            "Reason": reason
+                        })
+
+            # =========================
+            # 🧩 FILL SISA SPACE
+            # =========================
+            remaining_items = df[~df["PLU"].isin(placed_plu)]
+
+            for _, item in remaining_items.iterrows():
+
+                tier = tier_lookup.get(item["PLU"], 1)
+                width_needed = item["LEBAR PCS"] * tier
+
+                placed = False
+
+                for idx in df_shelf.index:
+                    shelf = df_shelf.loc[idx]
+
+                    if item["TINGGI PCS"] <= shelf["Max_Height"] and \
+                    shelf["Used_Width"] + width_needed <= shelf["Max_Width"]:
+
+                        df_shelf.loc[idx, "Used_Width"] += width_needed
+
+                        planogram.append({
+                            "PLU": item["PLU"],
+                            "Category": item["Category"],
+                            "Rak": shelf["Rak"],
+                            "Shelving": shelf["Shelving"],
+                            "Tier": tier
+                        })
+
+                        placed_plu.add(item["PLU"])
+                        placed = True
+                        break
+
+                if not placed:
+                    not_display.append({
+                        "PLU": item["PLU"],
+                        "Category": item["Category"],
+                        "Tier": tier,
+                        "Reason": "Tidak cukup space"
+                    })
+
+            # =========================
+            # 📊 BUILD FINAL OUTPUT
+            # =========================
+            df_planogram = pd.DataFrame(planogram)
+            df_not_display = pd.DataFrame(not_display)
+
+            if not df_planogram.empty:
+
+                df_planogram = df_planogram.merge(
+                    df[["PLU", "DESCP", "Category"]],
+                    on=["PLU", "Category"],
+                    how="left"
+                )
+
+                df_planogram = df_planogram.rename(columns={
+                    "DESCP": "Desc",
+                    "Tier": "Tier_Kiri_Kanan"
+                })
+
+                df_planogram["Posisi"] = "A"
+
+                df_planogram = df_planogram.sort_values(
+                    by=["Rak", "Shelving"]
+                ).reset_index(drop=True)
+
+                df_planogram["No_Urut"] = (
+                    df_planogram.groupby(["Rak", "Shelving"])
+                    .cumcount() + 1
+                )
+
+                df_planogram = df_planogram[
+                    ["Rak","Shelving","No_Urut","Posisi","Tier_Kiri_Kanan","PLU","Desc","Category"]
+                ]
+
+            # =========================
+            # 📊 OUTPUT
+            # =========================
+            st.subheader("📦 Planogram")
+            st.dataframe(df_planogram)
+
+            st.subheader("⚠️ Summary Item Tidak Masuk")
+            if not df_not_display.empty:
+                summary = (
+                    df_not_display.groupby(["Category","Reason"])
+                    .size()
+                    .reset_index(name="Jumlah")
+                    .sort_values(by="Jumlah", ascending=False)
+                )
+                st.dataframe(summary)
+
+            st.subheader("📋 Detail Item Tidak Masuk")
+            st.dataframe(df_not_display)
+
+            # =========================
+            # 💾 SAVE
             # =========================
             st.session_state["planogram"] = df_planogram
             st.session_state["not_display"] = df_not_display
-
-            st.success("✅ Planogram berhasil dibuat!")
-        
+                    
 
 # =========================
 # TAB 3
