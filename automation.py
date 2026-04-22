@@ -821,6 +821,14 @@ with tab2:
                     })
 
             df_shelf = pd.DataFrame(shelf_list)
+            
+            # =========================
+            # FIX TYPE NUMERIC
+            # =========================
+            df_shelf["Used_Width"] = df_shelf["Used_Width"].astype(float)
+            df_shelf["Max_Width"] = df_shelf["Max_Width"].astype(float)
+            df_shelf["Max_Height"] = df_shelf["Max_Height"].astype(float)
+            df_shelf["Item_Count"] = df_shelf["Item_Count"].astype(int)
 
             if df_shelf.empty:
                 st.error("Shelving belum terbentuk dengan benar.")
@@ -913,7 +921,7 @@ with tab2:
                     if tier < 1:
                         tier = 1
 
-                    width_needed = float(item["LEBAR PCS"]) * tier
+                    width_needed = float(item["LEBAR PCS"]) * float(tier)
                     height_needed = float(item["TINGGI PCS"])
 
                     placed = False
