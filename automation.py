@@ -249,13 +249,17 @@ with tab1:
             "Pilih Section",
             "Backwall",
             "Chiller",
+            "Noodle",
+            "Breakfast",
             "Snack",
             "Meja Kasir",
             "Bisc & Confect",
+            "Milk & Diapers",
+            "Misc & Stationary",
             "House Hold",
             "Medicine & Baby Care",
-            "Milk & Diapers",
-            "Misc & Stationary"
+            "Personal Care",
+            "Sanitary Adult"
         ]
 
         selected_section = st.selectbox(
