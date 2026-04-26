@@ -2,9 +2,11 @@ import streamlit as st
 import pandas as pd
 from io import BytesIO
 # from utils.ui_styles import render_fixed_header
+from utils.ui_styles import apply_custom_theme
 
 st.set_page_config(page_title="Planogram Automation", layout="wide")
-st.title("📊 Planogram Automation")
+apply_custom_theme()
+st.title("Planogram Automation")
 
 # ==================
 # INIT SESSION STATE
@@ -779,254 +781,351 @@ with tab2:
             "Jumlah_PLU",
             "Total_Lebar"
         ]]
-        st.subheader("Category Insight")
-        st.dataframe(df_final_category)
-        st.session_state["df_category_rank"] = df_final_category
+        with st.expander("📊 Category Insight", expanded=True):
+            st.dataframe(df_final_category) 
+            st.session_state["df_category_rank"] = df_final_category
         
-        # =========================
-        # 📊 KPI CARDS (UPGRADE)
-        # =========================
-        total_category = df_final_category["Category"].nunique()
-        total_subdept = df_final_category["Subdept"].nunique()
-
-        # =========================
-        # TOP 5 CATEGORY
-        # =========================
-        df_top_cat = df_final_category.copy()
-
-        df_top_cat["Contribution_num"] = pd.to_numeric(
-            df_top_cat["Contribution_Category (%)"].str.replace("%", ""),
-            errors="coerce"
-        )
-
-        top_5_cat = (
-            df_top_cat.sort_values(by="Contribution_num", ascending=False)
-            .head(5)["Category"]
-            .tolist()
-        )
-
-        top_5_cat_text = "\n".join([f"{i+1}. {c}" for i, c in enumerate(top_5_cat)])
-
-        # =========================
-        # TOP 3 SUBDEPT
-        # =========================
-        df_top_sub = (
-            df_final_category[["Subdept", "Contribution_Subdept (%)"]]
-            .drop_duplicates()
-        )
-
-        df_top_sub["Contribution_num"] = pd.to_numeric(
-            df_top_sub["Contribution_Subdept (%)"].str.replace("%", ""),
-            errors="coerce"
-        )
-
-        top_3_sub = (
-            df_top_sub.sort_values(by="Contribution_num", ascending=False)
-            .head(3)["Subdept"]
-            .tolist()
-        )
-
-        top_3_sub_text = "\n".join([f"{i+1}. {s}" for i, s in enumerate(top_3_sub)])
-
-        # =========================
-        # DISPLAY
-        # =========================
-        col1, col2, col3, col4 = st.columns(4)
-
-        col1.metric("Total Category", total_category)
-        col2.metric("Total Subdept", total_subdept)
-        col3.markdown(f"**Top 5 Category**\n\n{top_5_cat_text}")
-        col4.markdown(f"**Top 3 Subdept**\n\n{top_3_sub_text}")
-        
-        # =========================
-        # 📊 VISUAL INSIGHT (FINAL FIXED)
-        # =========================
-        col2, col1, col3 = st.columns(3)
-
-        # =========================
-        # 🍩 DONUT CATEGORY (FINAL CLEAN)
-        # =========================
-        with col1:
-            import matplotlib.pyplot as plt
-
-            st.markdown("**Contribution Category (Section)**")
-
-            df_pie_cat = df_final_category.copy()
+            # =========================
+            # 📊 KPI CARDS (UPGRADE)
+            # =========================
+            total_category = df_final_category["Category"].nunique()
+            total_subdept = df_final_category["Subdept"].nunique()
 
             # =========================
-            # CONVERT % → NUMERIC
+            # TOP 5 CATEGORY
             # =========================
-            df_pie_cat["Contribution_num"] = pd.to_numeric(
-                df_pie_cat["Contribution_Category (%)"].str.replace("%", ""),
+            df_top_cat = df_final_category.copy()
+
+            df_top_cat["Contribution_num"] = pd.to_numeric(
+                df_top_cat["Contribution_Category (%)"].str.replace("%", ""),
                 errors="coerce"
             )
 
-            df_pie_cat = df_pie_cat.dropna(subset=["Contribution_num"])
-
-            # =========================
-            # OPTIONAL: FILTER KECIL (BIAR GA RAMAI)
-            # =========================
-            df_pie_cat = df_pie_cat[df_pie_cat["Contribution_num"] > 1]
-
-            # =========================
-            # OPTIONAL: SORT
-            # =========================
-            df_pie_cat = df_pie_cat.sort_values(
-                by="Contribution_num",
-                ascending=False
+            top_5_cat = (
+                df_top_cat.sort_values(by="Contribution_num", ascending=False)
+                .head(5)["Category"]
+                .tolist()
             )
 
-            # =========================
-            # FORMAT LABEL (BISA DIPENDEKKAN)
-            # =========================
-            labels = df_pie_cat["Category"]
+            top_5_cat_text = "\n".join([f"{i+1}. {c}" for i, c in enumerate(top_5_cat)])
 
             # =========================
-            # FUNCTION FILTER AUTOPCT
+            # TOP 3 SUBDEPT
             # =========================
-            def autopct_filter(pct):
-                return f'{pct:.1f}%' if pct > 3 else ''  # 🔥 hide kecil
-
-            # =========================
-            # PLOT DONUT
-            # =========================
-            fig, ax = plt.subplots()
-
-            wedges, texts, autotexts = ax.pie(
-                df_pie_cat["Contribution_num"],
-                labels=labels,
-                autopct=autopct_filter,
-                pctdistance=0.75,   # 🔥 posisi persen di tengah ring
-                labeldistance=1.1,  # 🔥 label agak keluar
-                wedgeprops={'width': 0.4},
-                textprops={'fontsize': 9}
-            )
-
-            # =========================
-            # STYLE TEXT %
-            # =========================
-            for autotext in autotexts:
-                autotext.set_color("black")
-                autotext.set_fontsize(10)
-                autotext.set_weight("bold")
-
-            # =========================
-            # OPTIONAL: TEXT TENGAH
-            # =========================
-            ax.text(0, 0, "", ha='center', va='center', fontsize=10)
-
-            ax.set_ylabel("")
-
-            st.pyplot(fig)
-            
-        # =========================
-        # 🥧 PIE SUBDEPT (HARD FIX)
-        # =========================
-        with col2:
-            import matplotlib.pyplot as plt
-
-            st.markdown("**Contribution Subdept (Section)**")
-
-            # 🔥 PAKSA 1 BARIS PER SUBDEPT
-            df_pie_sub = (
+            df_top_sub = (
                 df_final_category[["Subdept", "Contribution_Subdept (%)"]]
-                .copy()
+                .drop_duplicates()
             )
 
-            # ambil unik subdept saja (aman)
-            df_pie_sub = df_pie_sub.drop_duplicates(subset=["Subdept"])
-
-            # convert ke numeric
-            df_pie_sub["Contribution_num"] = pd.to_numeric(
-                df_pie_sub["Contribution_Subdept (%)"].str.replace("%", ""),
+            df_top_sub["Contribution_num"] = pd.to_numeric(
+                df_top_sub["Contribution_Subdept (%)"].str.replace("%", ""),
                 errors="coerce"
             )
 
-            df_pie_sub = df_pie_sub.dropna(subset=["Contribution_num"])
-
-            # 🔥 SORT
-            df_pie_sub = df_pie_sub.sort_values(
-                by="Contribution_num",
-                ascending=False
+            top_3_sub = (
+                df_top_sub.sort_values(by="Contribution_num", ascending=False)
+                .head(3)["Subdept"]
+                .tolist()
             )
 
+            top_3_sub_text = "\n".join([f"{i+1}. {s}" for i, s in enumerate(top_3_sub)])
+
             # =========================
-            # 🔥 PLOT MANUAL (NO REUSE)
+            # DISPLAY
             # =========================
-            fig, ax = plt.subplots()
+            col1, col2, col3, col4 = st.columns(4)
 
-            ax.pie(
-                df_pie_sub["Contribution_num"],
-                labels=df_pie_sub["Subdept"],
-                autopct='%1.1f%%'
-            )
+            col1.metric("Total Category", total_category)
+            col2.metric("Total Subdept", total_subdept)
+            col3.markdown(f"**Top 5 Category**\n\n{top_5_cat_text}")
+            col4.markdown(f"**Top 3 Subdept**\n\n{top_3_sub_text}")
+            
+            # =========================
+            # 📊 VISUAL INSIGHT (FINAL FIXED)
+            # =========================
+            col2, col1, col3 = st.columns(3)
 
-            ax.set_ylabel("")
+            # =========================
+            # 🍩 DONUT CATEGORY (FINAL CLEAN)
+            # =========================
+            with col1:
+                import matplotlib.pyplot as plt
 
-            st.pyplot(fig)
+                st.markdown("**Contribution Category (Section)**")
 
-        # =========================
-        # 📋 TABLE GROWTH + RANK
-        # =========================
-        with col3:
-            st.markdown("**Top Growth Category**")
-            def color_growth(val):
-                if "NEW" in val:
-                    return "color: blue"
-                try:
-                    v = float(val.replace("%", ""))
-                    if v > 10:
-                        return "color: green"
-                    elif v < 0:
-                        return "color: red"
-                except:
+                df_pie_cat = df_final_category.copy()
+
+                # =========================
+                # CONVERT % → NUMERIC
+                # =========================
+                df_pie_cat["Contribution_num"] = pd.to_numeric(
+                    df_pie_cat["Contribution_Category (%)"].str.replace("%", ""),
+                    errors="coerce"
+                )
+
+                df_pie_cat = df_pie_cat.dropna(subset=["Contribution_num"])
+
+                # =========================
+                # OPTIONAL: FILTER KECIL (BIAR GA RAMAI)
+                # =========================
+                df_pie_cat = df_pie_cat[df_pie_cat["Contribution_num"] > 1]
+
+                # =========================
+                # OPTIONAL: SORT
+                # =========================
+                df_pie_cat = df_pie_cat.sort_values(
+                    by="Contribution_num",
+                    ascending=False
+                )
+
+                # =========================
+                # FORMAT LABEL (BISA DIPENDEKKAN)
+                # =========================
+                labels = df_pie_cat["Category"]
+
+                # =========================
+                # FUNCTION FILTER AUTOPCT
+                # =========================
+                def autopct_filter(pct):
+                    return f'{pct:.1f}%' if pct > 3 else ''  # 🔥 hide kecil
+
+                # =========================
+                # PLOT DONUT
+                # =========================
+                fig, ax = plt.subplots()
+
+                wedges, texts, autotexts = ax.pie(
+                    df_pie_cat["Contribution_num"],
+                    labels=labels,
+                    autopct=autopct_filter,
+                    pctdistance=0.75,   # 🔥 posisi persen di tengah ring
+                    labeldistance=1.1,  # 🔥 label agak keluar
+                    wedgeprops={'width': 0.4},
+                    textprops={'fontsize': 9}
+                )
+
+                # =========================
+                # STYLE TEXT %
+                # =========================
+                for autotext in autotexts:
+                    autotext.set_color("black")
+                    autotext.set_fontsize(10)
+                    autotext.set_weight("bold")
+
+                # =========================
+                # OPTIONAL: TEXT TENGAH
+                # =========================
+                ax.text(0, 0, "", ha='center', va='center', fontsize=10)
+
+                ax.set_ylabel("")
+
+                st.pyplot(fig)
+                
+            # =========================
+            # 🥧 PIE SUBDEPT (HARD FIX)
+            # =========================
+            with col2:
+                import matplotlib.pyplot as plt
+
+                st.markdown("**Contribution Subdept (Section)**")
+
+                # 🔥 PAKSA 1 BARIS PER SUBDEPT
+                df_pie_sub = (
+                    df_final_category[["Subdept", "Contribution_Subdept (%)"]]
+                    .copy()
+                )
+
+                # ambil unik subdept saja (aman)
+                df_pie_sub = df_pie_sub.drop_duplicates(subset=["Subdept"])
+
+                # convert ke numeric
+                df_pie_sub["Contribution_num"] = pd.to_numeric(
+                    df_pie_sub["Contribution_Subdept (%)"].str.replace("%", ""),
+                    errors="coerce"
+                )
+
+                df_pie_sub = df_pie_sub.dropna(subset=["Contribution_num"])
+
+                # 🔥 SORT
+                df_pie_sub = df_pie_sub.sort_values(
+                    by="Contribution_num",
+                    ascending=False
+                )
+
+                # =========================
+                # 🔥 PLOT MANUAL (NO REUSE)
+                # =========================
+                fig, ax = plt.subplots()
+
+                ax.pie(
+                    df_pie_sub["Contribution_num"],
+                    labels=df_pie_sub["Subdept"],
+                    autopct='%1.1f%%'
+                )
+
+                ax.set_ylabel("")
+
+                st.pyplot(fig)
+
+            # =========================
+            # 📋 TABLE GROWTH + RANK
+            # =========================
+            with col3:
+                st.markdown("**Top Growth Category**")
+                def color_growth(val):
+                    if "NEW" in val:
+                        return "color: blue"
+                    try:
+                        v = float(val.replace("%", ""))
+                        if v > 10:
+                            return "color: green"
+                        elif v < 0:
+                            return "color: red"
+                    except:
+                        return ""
                     return ""
-                return ""
 
-            df_growth = df_final_category.copy()
+                df_growth = df_final_category.copy()
 
-            df_growth["Growth_num"] = pd.to_numeric(
-                df_growth["YTD %GROWTH NS Category"].str.replace("%", ""),
+                df_growth["Growth_num"] = pd.to_numeric(
+                    df_growth["YTD %GROWTH NS Category"].str.replace("%", ""),
+                    errors="coerce"
+                )
+
+                df_growth = df_growth.dropna(subset=["Growth_num"])
+
+                df_growth = df_growth.sort_values(
+                    by="Growth_num",
+                    ascending=False
+                ).reset_index(drop=True)
+
+                # =========================
+                # 🔥 TAMBAH RANKING
+                # =========================
+                df_growth["Rank"] = df_growth.index + 1
+
+                df_growth = df_growth.head(10)
+
+                st.dataframe(
+                    df_growth[["Rank","Category","YTD %GROWTH NS Category"]]
+                    .style.applymap(color_growth, subset=["YTD %GROWTH NS Category"])
+                )
+        
+    # =========================
+    # 🔗 CATEGORY AFFINITY SELECTOR (FINAL + EXCLUDE SELF)
+    # =========================
+    with st.expander("🔗 Category Affinity", expanded=True):
+        df_aff = st.session_state.get("df_affinity", pd.DataFrame())
+        df_cat = st.session_state.get("df_category_rank", pd.DataFrame())
+
+        if df_aff.empty or df_cat.empty:
+            st.warning("Data affinity atau category belum tersedia")
+        else:
+
+            # =========================
+            # DEFAULT CATEGORY
+            # =========================
+            df_cat_temp = df_cat.copy()
+
+            df_cat_temp["Contribution_num"] = pd.to_numeric(
+                df_cat_temp["Contribution_Category (%)"].str.replace("%", ""),
                 errors="coerce"
             )
 
-            df_growth = df_growth.dropna(subset=["Growth_num"])
-
-            df_growth = df_growth.sort_values(
-                by="Growth_num",
-                ascending=False
-            ).reset_index(drop=True)
-
-            # =========================
-            # 🔥 TAMBAH RANKING
-            # =========================
-            df_growth["Rank"] = df_growth.index + 1
-
-            df_growth = df_growth.head(10)
-
-            st.dataframe(
-                df_growth[["Rank","Category","YTD %GROWTH NS Category"]]
-                .style.applymap(color_growth, subset=["YTD %GROWTH NS Category"])
+            default_category = (
+                df_cat_temp.sort_values(by="Contribution_num", ascending=False)
+                .iloc[0]["Category"]
             )
-        
-        # =========================
-        # 🏷️ BRAND INSIGHT PER CATEGORY
-        # =========================
-        st.subheader("Brand Insight")
 
+            # =========================
+            # SELECT CATEGORY
+            # =========================
+            category_list = df_aff["Category"].tolist()
+
+            selected_category = st.selectbox(
+                "Pilih Category",
+                options=category_list,
+                index=category_list.index(default_category)
+                if default_category in category_list else 0
+            )
+
+            # =========================
+            # AMBIL DATA
+            # =========================
+            df_aff_row = df_aff[df_aff["Category"] == selected_category]
+
+            if not df_aff_row.empty:
+
+                aff_series = df_aff_row.drop(columns=["Category"]).iloc[0]
+
+                df_top_aff = aff_series.reset_index()
+                df_top_aff.columns = ["Category_Pair", "Affinity"]
+
+                # convert numeric
+                df_top_aff["Affinity"] = pd.to_numeric(
+                    df_top_aff["Affinity"],
+                    errors="coerce"
+                )
+
+                df_top_aff = df_top_aff.dropna(subset=["Affinity"])
+
+                # =========================
+                # 🔥 EXCLUDE DIRI SENDIRI
+                # =========================
+                df_top_aff = df_top_aff[
+                    df_top_aff["Category_Pair"] != selected_category
+                ]
+
+                # =========================
+                # SORT & TOP 5
+                # =========================
+                df_top_aff = df_top_aff.sort_values(
+                    by="Affinity",
+                    ascending=False
+                ).head(5).reset_index(drop=True)
+
+                # =========================
+                # DISPLAY
+                # =========================
+                st.markdown(f"##### Top 5 Affinity untuk: {selected_category}")
+
+                cols = st.columns(5)
+
+                for i in range(len(df_top_aff)):
+                    row = df_top_aff.iloc[i]
+
+                    rank = i + 1
+                    value_pct = row["Affinity"] * 100
+
+                    label = f"{rank}. {row['Category_Pair']}"
+
+                    cols[i].metric(
+                        label=label,
+                        value=f"{value_pct:.2f}%"
+                    )
+
+            else:
+                st.info("Affinity tidak ditemukan untuk category ini")
+        
+        
+    # =========================
+    # 🏷️ BRAND INSIGHT PER CATEGORY (UPDATED)
+    # =========================
+    with st.expander("🏷️ Brand Insight", expanded=True):
         df = st.session_state["df_result"].copy()
 
-        # ambil data brand performance
         if "YTD ∑NS 2026 Brand" in df.columns:
 
             df_brand_insight = (
                 df.groupby(["Category", "Brand"])
                 .agg(
                     Jumlah_PLU=("PLU", "nunique"),
-                    Total_NS=("YTD ∑NS 2026 Brand", "first")  # tidak di-sum
+                    Total_NS=("YTD ∑NS 2026 Brand", "first"),
+                    Growth=("YTD %GROWTH NS Brand", "first")  # 🔥 NEW
                 )
                 .reset_index()
             )
+
             df_brand_insight = df_brand_insight.sort_values(
                 by=["Category", "Total_NS"],
                 ascending=[True, False]
@@ -1037,10 +1136,14 @@ with tab2:
                 .cumcount() + 1
             )
 
+            # =========================
+            # CONTRIBUTION
+            # =========================
             df_brand_insight["Contribution_Brand (%)"] = (
                 df_brand_insight["Total_NS"] /
                 df_brand_insight.groupby("Category")["Total_NS"].transform("sum")
             )
+
             df_brand_insight["Contribution_Brand (%)"] = (
                 df_brand_insight["Contribution_Brand (%)"]
                 .fillna(0)
@@ -1048,16 +1151,37 @@ with tab2:
                 .round(2)
                 .astype(str) + "%"
             )
+
+            # =========================
+            # FORMAT GROWTH
+            # =========================
+            def format_growth(x):
+                if pd.isna(x):
+                    return "-"
+                if str(x).strip() == "-":
+                    return "NEW"
+                try:
+                    return f"{float(x)*100:.2f}%"
+                except:
+                    return "-"
+
+            df_brand_insight["Growth (%)"] = df_brand_insight["Growth"].apply(format_growth)
+
+            # =========================
+            # DISPLAY
+            # =========================
             st.dataframe(df_brand_insight)
+
             st.session_state["df_brand_insight"] = df_brand_insight
+
         else:
             st.warning("Kolom 'YTD ∑NS 2026 Brand' tidak ditemukan")
-            
-        
-        st.header(" Setting Planogram")
-        # =========================
-        # 🧠 SORTING PRIORITY ENGINE (USER INPUT)
-        # =========================
+    
+    
+    # =========================
+    # 🧠 SORTING PRIORITY ENGINE (USER INPUT)
+    # =========================
+    with st.expander("⚙️ Setting Planogram", expanded=True):
         st.subheader("Urutan PDT")
         
         import pandas as pd
@@ -1201,357 +1325,301 @@ with tab2:
             # simpan
             st.session_state["df_sorted"] = df_sorted
         
-        # =========================
-        # 🧩 ORDER PACKTYPE (MULTISELECT)
-        # =========================
-        st.subheader("🧩 Urutan Packtype")
-        packtype_options = (
-            st.session_state["df_result"]["Packtype"]
-            .fillna("UNKNOWN")
-            .astype(str)
-            .str.strip()
-            .unique()
-            .tolist()
-        )
+        # if st.button("🚀 Generate Planogram"):    
+            # # =========================
+            # # 🚀 PLANOGRAM ENGINE (CATEGORY CHAIN + PACKTYPE ORDER)
+            # # =========================
 
-        st.caption(
-            "Pilih urutan packtype (opsional). "
-            "Urutan mengikuti pilihan Anda. "
-            "Yang tidak dipilih akan otomatis diurutkan di belakang."
-        )
+            # df = st.session_state["df_result"].copy()
+            # df_category = st.session_state["df_category_rank"].copy()
+            # df_rack = st.session_state["rack_config"].copy()
+            # df_tier = st.session_state.get("df_tier", pd.DataFrame())
+            # df_aff = st.session_state.get("df_affinity", pd.DataFrame())
+            # packtype_priority_map = st.session_state.get("packtype_priority_map", {})
 
-        # multiselect (order mengikuti klik)
-        selected_packtype = st.multiselect(
-            "Pilih Packtype Prioritas",
-            options=packtype_options
-        )
+            # # =========================
+            # # SAFETY CHECK
+            # # =========================
+            # if df.empty:
+            #     st.error("Data hasil upload masih kosong.")
+            #     st.stop()
 
-        # =========================
-        # BUILD FINAL ORDER
-        # =========================
-        if selected_packtype:
-            # urutan: pilihan user dulu, lalu sisanya
-            remaining = [p for p in packtype_options if p not in selected_packtype]
-            final_order = selected_packtype + remaining
-        else:
-            # default: urutan asli
-            final_order = packtype_options
+            # if df_category.empty:
+            #     st.error("Category Insight belum tersedia.")
+            #     st.stop()
 
-        # =========================
-        # MAPPING PRIORITY
-        # =========================
-        packtype_priority_map = {
-            p: i + 1 for i, p in enumerate(final_order)
-        }
+            # if df_rack.empty:
+            #     st.error("Konfigurasi rak belum tersedia.")
+            #     st.stop()
 
-        # save ke session
-        st.session_state["packtype_priority_map"] = packtype_priority_map
+            # # =========================
+            # # TIER LOOKUP
+            # # =========================
+            # if not df_tier.empty and {"PLU", "Tier"}.issubset(df_tier.columns):
+            #     tier_lookup = dict(zip(df_tier["PLU"].astype(str), df_tier["Tier"]))
+            # else:
+            #     tier_lookup = {}
 
-        # preview (opsional)
-        df_packtype_order = pd.DataFrame({
-            "Packtype": final_order,
-            "Priority": range(1, len(final_order) + 1)
-        })
+            # # =========================
+            # # BRAND RANKING (kalau belum ada)
+            # # =========================
+            # if "Brand_Rank" not in df.columns:
+            #     if "YTD ∑NS 2026 Brand" in df.columns:
+            #         df_brand_rank = (
+            #             df[["Brand", "YTD ∑NS 2026 Brand"]]
+            #             .drop_duplicates()
+            #             .sort_values(by="YTD ∑NS 2026 Brand", ascending=False)
+            #             .reset_index(drop=True)
+            #         )
+            #         df_brand_rank["Brand_Rank"] = df_brand_rank.index + 1
+            #         df = df.merge(
+            #             df_brand_rank[["Brand", "Brand_Rank"]],
+            #             on="Brand",
+            #             how="left"
+            #         )
+            #     else:
+            #         df["Brand_Rank"] = 999999
 
-        st.subheader("Preview Urutan Packtype")
-        st.dataframe(df_packtype_order)
+            # # =========================
+            # # PACKTYPE PRIORITY COLUMN
+            # # =========================
+            # if "Packtype" in df.columns:
+            #     df["Packtype"] = df["Packtype"].fillna("UNKNOWN").astype(str).str.strip()
+            #     df["Packtype_Priority"] = df["Packtype"].map(packtype_priority_map)
+            #     df["Packtype_Priority"] = df["Packtype_Priority"].fillna(
+            #         len(packtype_priority_map) + 999
+            #     ).astype(int)
+            # else:
+            #     df["Packtype_Priority"] = 999999
 
-        
-        if st.button("🚀 Generate Planogram"):    
-            # =========================
-            # 🚀 PLANOGRAM ENGINE (CATEGORY CHAIN + PACKTYPE ORDER)
-            # =========================
+            # # =========================
+            # # PREPARE AFFINITY MAP
+            # # =========================
+            # aff_map = {}
+            # if not df_aff.empty and "Category" in df_aff.columns:
+            #     df_aff_long = df_aff.melt(
+            #         id_vars="Category",
+            #         var_name="Category_Pair",
+            #         value_name="Affinity"
+            #     )
 
-            df = st.session_state["df_result"].copy()
-            df_category = st.session_state["df_category_rank"].copy()
-            df_rack = st.session_state["rack_config"].copy()
-            df_tier = st.session_state.get("df_tier", pd.DataFrame())
-            df_aff = st.session_state.get("df_affinity", pd.DataFrame())
-            packtype_priority_map = st.session_state.get("packtype_priority_map", {})
+            #     df_aff_long = df_aff_long[
+            #         df_aff_long["Category"].astype(str) != df_aff_long["Category_Pair"].astype(str)
+            #     ]
 
-            # =========================
-            # SAFETY CHECK
-            # =========================
-            if df.empty:
-                st.error("Data hasil upload masih kosong.")
-                st.stop()
+            #     df_aff_top = (
+            #         df_aff_long.sort_values(["Category", "Affinity"], ascending=[True, False])
+            #         .drop_duplicates(subset=["Category"], keep="first")
+            #         .rename(columns={
+            #             "Category_Pair": "Top_Affinity_Category",
+            #             "Affinity": "Top_Affinity_Score"
+            #         })
+            #     )
 
-            if df_category.empty:
-                st.error("Category Insight belum tersedia.")
-                st.stop()
+            #     df_category = df_category.merge(df_aff_top, on="Category", how="left")
+            #     aff_map = dict(
+            #         zip(
+            #             df_category["Category"].astype(str),
+            #             df_category.get("Top_Affinity_Category", pd.Series([None] * len(df_category))).astype(str)
+            #         )
+            #     )
 
-            if df_rack.empty:
-                st.error("Konfigurasi rak belum tersedia.")
-                st.stop()
+            # # =========================
+            # # EXPAND SHELVING
+            # # =========================
+            # shelf_list = []
 
-            # =========================
-            # TIER LOOKUP
-            # =========================
-            if not df_tier.empty and {"PLU", "Tier"}.issubset(df_tier.columns):
-                tier_lookup = dict(zip(df_tier["PLU"].astype(str), df_tier["Tier"]))
-            else:
-                tier_lookup = {}
+            # rack_order = df_rack["Rak"].tolist()
 
-            # =========================
-            # BRAND RANKING (kalau belum ada)
-            # =========================
-            if "Brand_Rank" not in df.columns:
-                if "YTD ∑NS 2026 Brand" in df.columns:
-                    df_brand_rank = (
-                        df[["Brand", "YTD ∑NS 2026 Brand"]]
-                        .drop_duplicates()
-                        .sort_values(by="YTD ∑NS 2026 Brand", ascending=False)
-                        .reset_index(drop=True)
-                    )
-                    df_brand_rank["Brand_Rank"] = df_brand_rank.index + 1
-                    df = df.merge(
-                        df_brand_rank[["Brand", "Brand_Rank"]],
-                        on="Brand",
-                        how="left"
-                    )
-                else:
-                    df["Brand_Rank"] = 999999
+            # for rack_idx, (_, row) in enumerate(df_rack.iterrows(), start=1):
+            #     rak = row["Rak"]
+            #     lebar = row["Lebar Shelving (cm)"]
+            #     max_heights = row["Max Tinggi per Shelving"]
 
-            # =========================
-            # PACKTYPE PRIORITY COLUMN
-            # =========================
-            if "Packtype" in df.columns:
-                df["Packtype"] = df["Packtype"].fillna("UNKNOWN").astype(str).str.strip()
-                df["Packtype_Priority"] = df["Packtype"].map(packtype_priority_map)
-                df["Packtype_Priority"] = df["Packtype_Priority"].fillna(
-                    len(packtype_priority_map) + 999
-                ).astype(int)
-            else:
-                df["Packtype_Priority"] = 999999
+            #     for shelf_no, h in enumerate(max_heights, start=1):
+            #         shelf_list.append({
+            #             "Rack_Order": rack_idx,
+            #             "Rak": rack_idx,  # angka
+            #             "Shelving_No": shelf_no,
+            #             "Shelving": shelf_no,  # angka
+            #             "Max_Height": h,
+            #             "Max_Width": lebar,
+            #             "Used_Width": 0,
+            #             "Item_Count": 0
+            #         })
 
-            # =========================
-            # PREPARE AFFINITY MAP
-            # =========================
-            aff_map = {}
-            if not df_aff.empty and "Category" in df_aff.columns:
-                df_aff_long = df_aff.melt(
-                    id_vars="Category",
-                    var_name="Category_Pair",
-                    value_name="Affinity"
-                )
-
-                df_aff_long = df_aff_long[
-                    df_aff_long["Category"].astype(str) != df_aff_long["Category_Pair"].astype(str)
-                ]
-
-                df_aff_top = (
-                    df_aff_long.sort_values(["Category", "Affinity"], ascending=[True, False])
-                    .drop_duplicates(subset=["Category"], keep="first")
-                    .rename(columns={
-                        "Category_Pair": "Top_Affinity_Category",
-                        "Affinity": "Top_Affinity_Score"
-                    })
-                )
-
-                df_category = df_category.merge(df_aff_top, on="Category", how="left")
-                aff_map = dict(
-                    zip(
-                        df_category["Category"].astype(str),
-                        df_category.get("Top_Affinity_Category", pd.Series([None] * len(df_category))).astype(str)
-                    )
-                )
-
-            # =========================
-            # EXPAND SHELVING
-            # =========================
-            shelf_list = []
-
-            rack_order = df_rack["Rak"].tolist()
-
-            for rack_idx, (_, row) in enumerate(df_rack.iterrows(), start=1):
-                rak = row["Rak"]
-                lebar = row["Lebar Shelving (cm)"]
-                max_heights = row["Max Tinggi per Shelving"]
-
-                for shelf_no, h in enumerate(max_heights, start=1):
-                    shelf_list.append({
-                        "Rack_Order": rack_idx,
-                        "Rak": rack_idx,  # angka
-                        "Shelving_No": shelf_no,
-                        "Shelving": shelf_no,  # angka
-                        "Max_Height": h,
-                        "Max_Width": lebar,
-                        "Used_Width": 0,
-                        "Item_Count": 0
-                    })
-
-            df_shelf = pd.DataFrame(shelf_list)
+            # df_shelf = pd.DataFrame(shelf_list)
             
-            # =========================
-            # FIX TYPE NUMERIC
-            # =========================
-            df_shelf["Used_Width"] = df_shelf["Used_Width"].astype(float)
-            df_shelf["Max_Width"] = df_shelf["Max_Width"].astype(float)
-            df_shelf["Max_Height"] = df_shelf["Max_Height"].astype(float)
-            df_shelf["Item_Count"] = df_shelf["Item_Count"].astype(int)
+            # # =========================
+            # # FIX TYPE NUMERIC
+            # # =========================
+            # df_shelf["Used_Width"] = df_shelf["Used_Width"].astype(float)
+            # df_shelf["Max_Width"] = df_shelf["Max_Width"].astype(float)
+            # df_shelf["Max_Height"] = df_shelf["Max_Height"].astype(float)
+            # df_shelf["Item_Count"] = df_shelf["Item_Count"].astype(int)
 
-            if df_shelf.empty:
-                st.error("Shelving belum terbentuk dengan benar.")
-                st.stop()
+            # if df_shelf.empty:
+            #     st.error("Shelving belum terbentuk dengan benar.")
+            #     st.stop()
 
-            df_shelf = df_shelf.sort_values(
-                by=["Rack_Order", "Shelving_No"],
-                ascending=[True, True]
-            ).reset_index(drop=True)
+            # df_shelf = df_shelf.sort_values(
+            #     by=["Rack_Order", "Shelving_No"],
+            #     ascending=[True, True]
+            # ).reset_index(drop=True)
 
-            # =========================
-            # CATEGORY SEED ORDER
-            # =========================
-            df_category = df_category.drop_duplicates(subset=["Category"]).copy()
-            df_category = df_category.sort_values(by="Rank", ascending=True).reset_index(drop=True)
+            # # =========================
+            # # CATEGORY SEED ORDER
+            # # =========================
+            # df_category = df_category.drop_duplicates(subset=["Category"]).copy()
+            # df_category = df_category.sort_values(by="Rank", ascending=True).reset_index(drop=True)
 
-            ranked_categories = df_category["Category"].astype(str).tolist()
-            placed_categories = set()
+            # ranked_categories = df_category["Category"].astype(str).tolist()
+            # placed_categories = set()
 
-            # bikin chain kategori berdasarkan rank + affinity
-            category_chain = []
-            for seed in ranked_categories:
-                if seed in category_chain:
-                    continue
+            # # bikin chain kategori berdasarkan rank + affinity
+            # category_chain = []
+            # for seed in ranked_categories:
+            #     if seed in category_chain:
+            #         continue
 
-                current = seed
-                local_seen = set()
+            #     current = seed
+            #     local_seen = set()
 
-                while current and current not in local_seen and current not in category_chain:
-                    category_chain.append(current)
-                    local_seen.add(current)
+            #     while current and current not in local_seen and current not in category_chain:
+            #         category_chain.append(current)
+            #         local_seen.add(current)
 
-                    next_cat = aff_map.get(current, None)
-                    if pd.isna(next_cat):
-                        break
+            #         next_cat = aff_map.get(current, None)
+            #         if pd.isna(next_cat):
+            #             break
 
-                    next_cat = str(next_cat).strip()
-                    if not next_cat or next_cat.lower() == "nan":
-                        break
-                    if next_cat in local_seen:
-                        break
+            #         next_cat = str(next_cat).strip()
+            #         if not next_cat or next_cat.lower() == "nan":
+            #             break
+            #         if next_cat in local_seen:
+            #             break
 
-                    current = next_cat
+            #         current = next_cat
 
-            # tambah category yang belum kebagian chain
-            for cat in ranked_categories:
-                if cat not in category_chain:
-                    category_chain.append(cat)
+            # # tambah category yang belum kebagian chain
+            # for cat in ranked_categories:
+            #     if cat not in category_chain:
+            #         category_chain.append(cat)
 
-            # =========================
-            # SORT ITEM DALAM CATEGORY
-            # =========================
-            sort_cols = ["Category", "Packtype_Priority", "Brand_Rank", "NS/JTD"]
-            sort_ascending = [True, True, True, False]
+            # # =========================
+            # # SORT ITEM DALAM CATEGORY
+            # # =========================
+            # sort_cols = ["Category", "Packtype_Priority", "Brand_Rank", "NS/JTD"]
+            # sort_ascending = [True, True, True, False]
 
-            available_sort_cols = [c for c in sort_cols if c in df.columns]
-            df = df.sort_values(
-                by=available_sort_cols,
-                ascending=[sort_ascending[sort_cols.index(c)] for c in available_sort_cols]
-            ).reset_index(drop=True)
+            # available_sort_cols = [c for c in sort_cols if c in df.columns]
+            # df = df.sort_values(
+            #     by=available_sort_cols,
+            #     ascending=[sort_ascending[sort_cols.index(c)] for c in available_sort_cols]
+            # ).reset_index(drop=True)
 
-            # =========================
-            # PLACEMENT ENGINE
-            # =========================
-            planogram = []
-            not_display = []
-            placed_plu = set()
+            # # =========================
+            # # PLACEMENT ENGINE
+            # # =========================
+            # planogram = []
+            # not_display = []
+            # placed_plu = set()
 
-            for category in category_chain:
-                df_cat_items = df[df["Category"].astype(str) == str(category)].copy()
+            # for category in category_chain:
+            #     df_cat_items = df[df["Category"].astype(str) == str(category)].copy()
 
-                if df_cat_items.empty:
-                    continue
+            #     if df_cat_items.empty:
+            #         continue
 
-                df_cat_items = df_cat_items.sort_values(
-                    by=[c for c in ["Packtype_Priority", "Brand_Rank", "NS/JTD"] if c in df_cat_items.columns],
-                    ascending=[True, True, False][:len([c for c in ["Packtype_Priority", "Brand_Rank", "NS/JTD"] if c in df_cat_items.columns])]
-                )
+            #     df_cat_items = df_cat_items.sort_values(
+            #         by=[c for c in ["Packtype_Priority", "Brand_Rank", "NS/JTD"] if c in df_cat_items.columns],
+            #         ascending=[True, True, False][:len([c for c in ["Packtype_Priority", "Brand_Rank", "NS/JTD"] if c in df_cat_items.columns])]
+            #     )
 
-                for _, item in df_cat_items.iterrows():
-                    plu = str(item["PLU"])
-                    if plu in placed_plu:
-                        continue
+            #     for _, item in df_cat_items.iterrows():
+            #         plu = str(item["PLU"])
+            #         if plu in placed_plu:
+            #             continue
 
-                    tier = tier_lookup.get(plu, 1)
-                    try:
-                        tier = int(tier) if pd.notna(tier) else 1
-                    except Exception:
-                        tier = 1
-                    if tier < 1:
-                        tier = 1
+            #         tier = tier_lookup.get(plu, 1)
+            #         try:
+            #             tier = int(tier) if pd.notna(tier) else 1
+            #         except Exception:
+            #             tier = 1
+            #         if tier < 1:
+            #             tier = 1
 
-                    width_needed = float(item["LEBAR PCS"]) * float(tier)
-                    height_needed = float(item["TINGGI PCS"])
+            #         width_needed = float(item["LEBAR PCS"]) * float(tier)
+            #         height_needed = float(item["TINGGI PCS"])
 
-                    placed = False
+            #         placed = False
 
-                    for idx in df_shelf.index:
-                        shelf = df_shelf.loc[idx]
+            #         for idx in df_shelf.index:
+            #             shelf = df_shelf.loc[idx]
 
-                        if height_needed > float(shelf["Max_Height"]):
-                            continue
+            #             if height_needed > float(shelf["Max_Height"]):
+            #                 continue
 
-                        if float(shelf["Used_Width"]) + width_needed <= float(shelf["Max_Width"]):
-                            no_urut = int(df_shelf.loc[idx, "Item_Count"]) + 1
+            #             if float(shelf["Used_Width"]) + width_needed <= float(shelf["Max_Width"]):
+            #                 no_urut = int(df_shelf.loc[idx, "Item_Count"]) + 1
 
-                            df_shelf.loc[idx, "Used_Width"] = float(shelf["Used_Width"]) + width_needed
-                            df_shelf.loc[idx, "Item_Count"] = no_urut
+            #                 df_shelf.loc[idx, "Used_Width"] = float(shelf["Used_Width"]) + width_needed
+            #                 df_shelf.loc[idx, "Item_Count"] = no_urut
 
-                            planogram.append({
-                                "Rak": shelf["Rak"],
-                                "Shelving": shelf["Shelving"],
-                                "No_Urut": no_urut,
-                                "Posisi": "A",
-                                "Tier_Kiri_Kanan": tier,
-                                "PLU": plu,
-                                "Desc": item.get("DESCP", ""),
-                                "Category": item["Category"]
-                            })
+            #                 planogram.append({
+            #                     "Rak": shelf["Rak"],
+            #                     "Shelving": shelf["Shelving"],
+            #                     "No_Urut": no_urut,
+            #                     "Posisi": "A",
+            #                     "Tier_Kiri_Kanan": tier,
+            #                     "PLU": plu,
+            #                     "Desc": item.get("DESCP", ""),
+            #                     "Category": item["Category"]
+            #                 })
 
-                            placed_plu.add(plu)
-                            placed = True
-                            break
+            #                 placed_plu.add(plu)
+            #                 placed = True
+            #                 break
 
-                    if not placed:
-                        not_display.append({
-                            "PLU": plu,
-                            "Category": item["Category"],
-                            "Tier": tier,
-                            "Reason": "Tidak cukup space / tinggi tidak sesuai"
-                        })
+            #         if not placed:
+            #             not_display.append({
+            #                 "PLU": plu,
+            #                 "Category": item["Category"],
+            #                 "Tier": tier,
+            #                 "Reason": "Tidak cukup space / tinggi tidak sesuai"
+            #             })
 
-            # =========================
-            # FINAL OUTPUT
-            # =========================
-            df_planogram = pd.DataFrame(planogram)
-            df_not_display = pd.DataFrame(not_display)
+            # # =========================
+            # # FINAL OUTPUT
+            # # =========================
+            # df_planogram = pd.DataFrame(planogram)
+            # df_not_display = pd.DataFrame(not_display)
 
-            if not df_planogram.empty:
-                df_planogram = df_planogram[
-                    ["Rak", "Shelving", "No_Urut", "Posisi", "Tier_Kiri_Kanan", "PLU", "Desc", "Category"]
-                ].sort_values(
-                    by=["Rak", "Shelving", "No_Urut"]
-                ).reset_index(drop=True)
+            # if not df_planogram.empty:
+            #     df_planogram = df_planogram[
+            #         ["Rak", "Shelving", "No_Urut", "Posisi", "Tier_Kiri_Kanan", "PLU", "Desc", "Category"]
+            #     ].sort_values(
+            #         by=["Rak", "Shelving", "No_Urut"]
+            #     ).reset_index(drop=True)
 
-            st.subheader("📦 Planogram")
-            st.dataframe(df_planogram)
+            # st.subheader("📦 Planogram")
+            # st.dataframe(df_planogram)
 
-            st.subheader("⚠️ Summary Item Tidak Masuk")
-            if not df_not_display.empty:
-                summary = (
-                    df_not_display.groupby(["Category", "Reason"])
-                    .size()
-                    .reset_index(name="Jumlah")
-                    .sort_values(by="Jumlah", ascending=False)
-                )
-                st.dataframe(summary)
+            # st.subheader("⚠️ Summary Item Tidak Masuk")
+            # if not df_not_display.empty:
+            #     summary = (
+            #         df_not_display.groupby(["Category", "Reason"])
+            #         .size()
+            #         .reset_index(name="Jumlah")
+            #         .sort_values(by="Jumlah", ascending=False)
+            #     )
+            #     st.dataframe(summary)
 
-            st.subheader("📋 Detail Item Tidak Masuk")
-            st.dataframe(df_not_display)
+            # st.subheader("📋 Detail Item Tidak Masuk")
+            # st.dataframe(df_not_display)
 
-            st.session_state["planogram"] = df_planogram
-            st.session_state["not_display"] = df_not_display
+            # st.session_state["planogram"] = df_planogram
+            # st.session_state["not_display"] = df_not_display
 
 # =========================
 # TAB 3
