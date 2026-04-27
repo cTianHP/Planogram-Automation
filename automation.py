@@ -1033,8 +1033,7 @@ with tab2:
                 df_growth = df_growth.head(10)
 
                 st.dataframe(
-                    df_growth[["Rank","Category","YTD %GROWTH NS Category"]]
-                    .style.applymap(color_growth, subset=["YTD %GROWTH NS Category"]), hide_index=True
+                    df_growth[["Rank","Category","YTD %GROWTH NS Category"]], hide_index=True
                 )
         
     # =========================
